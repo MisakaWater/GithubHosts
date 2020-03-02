@@ -8,27 +8,10 @@ using System.Threading.Tasks;
 using DnsClient;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using static GithubHost.WinHelper;
 using System.Threading;
 
 namespace GithubHost
 {
-    class WinHelper
-    {
-        [ComImport, Guid("DCB00C01-570F-4A9B-8D69-199FDBA5723B"), ClassInterface(ClassInterfaceType.None)]
-        public class NetworkListManager : INetworkCostManager
-        {
-            [MethodImpl(MethodImplOptions.InternalCall)]
-            public virtual extern void GetCost(out uint pCost, [In] IntPtr pDestIPAddr);
-        }
-
-
-        [ComImport, Guid("DCB00008-570F-4A9B-8D69-199FDBA5723B"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-        public interface INetworkCostManager
-        {
-            void GetCost(out uint pCost, [In] IntPtr pDestIPAddr);
-        }
-    }
     class Program
     {
         readonly static string[] HostPath = new string[2] { @"C:\Windows\System32\drivers\etc\hosts", @"/etc/hosts" };
@@ -47,34 +30,29 @@ namespace GithubHost
                 Addr[i] = LookUpAsync(HostsName[i]);
             }
             SetHosts();
-            //cost=1不计费网络,cost=2计费网络
-            //https://support.microsoft.com/zh-cn/help/4028458/windows-metered-connections-in-windows-10
             if (OS.Platform == PlatformID.Win32NT)
             {
                 FlushDns();
                 Console.WriteLine("下载速度测试...");
                 Console.WriteLine("Ctrl + C 停止测试");
-                new NetworkListManager().GetCost(out uint cost, IntPtr.Zero);
-                if (cost == 1)
-                {//不计费网络
-                    var speed = SpeedTest();
-                    Console.WriteLine("测试下载速度: " + speed + "kbps");
-                    if (speed < 300)
+                var speed = SpeedTest();
+                Console.WriteLine("测试下载速度: " + speed + "kbps");
+                if (speed < 300)
+                {
+                    Console.WriteLine("测试下载速度 < 300kbps");
+                    string[] strArr = new string[] { };
+                    for (int i = 0; i < 29; i++)
                     {
-                        Console.WriteLine("测试下载速度 < 300kbps");
-                        string[] strArr = new string[] { };
-                        for (int i = 0; i < 29; i++)
-                        {
-                            Console.Write("/");
-                        }
-                        Console.Write(Environment.NewLine);
-                        MainCount++;
-                        if (MainCount < 10)
-                        {
-                            Main(strArr);
-                        }
+                        Console.Write("/");
+                    }
+                    Console.Write(Environment.NewLine);
+                    MainCount++;
+                    if (MainCount < 10)
+                    {
+                        Main(strArr);
                     }
                 }
+
             }
             Console.WriteLine("Hosts设置成功！");
             for (int i = 3; i > 0; i--)
