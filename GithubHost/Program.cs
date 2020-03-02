@@ -74,8 +74,8 @@ namespace GithubHost
             return _funcArr.FirstOrDefault(f => f.Key == _OS.Platform).Value();
         }
         bool LinuxFlushDns()
-        {
-            throw new NotImplementedException();
+        {//linux下一般没有dns缓存
+            return true;
         }
 
         bool WinNtFlushDns()
