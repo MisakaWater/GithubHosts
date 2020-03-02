@@ -73,14 +73,23 @@ namespace GithubHost
             SetHosts();
             return _funcArr.FirstOrDefault(f => f.Key == _OS.Platform).Value();
         }
-        public bool LinuxFlushDns()
+        bool LinuxFlushDns()
         {
             throw new NotImplementedException();
         }
 
-        public bool WinNtFlushDns()
+        bool WinNtFlushDns()
         {
-            FlushDns();
+            Process process = new Process();
+            ProcessStartInfo startInfo = new ProcessStartInfo();
+            startInfo.WindowStyle = ProcessWindowStyle.Hidden;
+            startInfo.FileName = "cmd.exe";
+            startInfo.Arguments = "/C ipconfig /flushdns";
+            startInfo.RedirectStandardOutput = false;
+            process.StartInfo = startInfo;
+            process.Start();
+            process.Close();
+
             Console.WriteLine("下载速度测试...");
             Console.WriteLine("Ctrl + C 停止测试");
             var speed = SpeedTest();
@@ -106,19 +115,6 @@ namespace GithubHost
                 Console.Write($"{i}秒后自动关闭");
                 Thread.Sleep(1000);
             }
-        }
-
-        void FlushDns()
-        {
-            System.Diagnostics.Process process = new System.Diagnostics.Process();
-            System.Diagnostics.ProcessStartInfo startInfo = new System.Diagnostics.ProcessStartInfo();
-            startInfo.WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden;
-            startInfo.FileName = "cmd.exe";
-            startInfo.Arguments = "/C ipconfig /flushdns";
-            startInfo.RedirectStandardOutput = false;
-            process.StartInfo = startInfo;
-            process.Start();
-            process.Close();
         }
         long SpeedTest()
         {
