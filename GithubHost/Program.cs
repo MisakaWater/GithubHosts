@@ -9,72 +9,114 @@ using DnsClient;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading;
+using System.Collections.Generic;
 
 namespace GithubHost
 {
     class Program
     {
-        readonly static string[] HostPath = new string[2] { @"C:\Windows\System32\drivers\etc\hosts", @"/etc/hosts" };
-        readonly static string[] HostsName = new string[3] { "github.com", "github-cloud.s3.amazonaws.com", "codeload.github.com" };
-        static IPAddress[] Addr = new IPAddress[0];
-        static OperatingSystem OS;
-        static int MainCount = 0;
         static void Main(string[] args)
         {
-            Console.WriteLine($"第{MainCount}次测试");
-
-            OS = Environment.OSVersion;
-            Array.Resize(ref Addr, HostsName.Length);
-            for (int i = 0; i < HostsName.Length; i++)
+            var Count = 1;
+            var core = new Core();
+            while (!core.Iteration())
             {
-                Addr[i] = LookUpAsync(HostsName[i]);
-            }
-            SetHosts();
-            if (OS.Platform == PlatformID.Win32NT)
-            {
-                FlushDns();
-                Console.WriteLine("下载速度测试...");
-                Console.WriteLine("Ctrl + C 停止测试");
-                var speed = SpeedTest();
-                Console.WriteLine("测试下载速度: " + speed + "kbps");
-                if (speed < 300)
+                Console.WriteLine($"第{Count}次测试");
+                Count++;
+                if (Count==10)
                 {
-                    Console.WriteLine("测试下载速度 < 300kbps");
-                    string[] strArr = new string[] { };
-                    for (int i = 0; i < 29; i++)
-                    {
-                        Console.Write("/");
-                    }
-                    Console.Write(Environment.NewLine);
-                    MainCount++;
-                    if (MainCount < 10)
-                    {
-                        Main(strArr);
-                    }
+                    Console.WriteLine("已尝试10次，请检查网络情况。");
+                    break;
                 }
-
             }
-            Console.WriteLine("Hosts设置成功！");
-            for (int i = 3; i > 0; i--)
-            {
-                Console.CursorLeft = 0;
-                Console.Write($"{i}秒后自动关闭");
-                Thread.Sleep(1000);
-            }
+            core.ConsoleWait(3);
         }
-        static void FlushDns()
+
+    }
+    class Core
+    {
+        private Dictionary<PlatformID, string> _hostPath;
+        private List<string> _hostName;
+        private OperatingSystem _OS;
+        private IPAddress[] _addr;
+        private Dictionary<PlatformID, Func<bool>> _funcArr;
+        public Core()
         {
-            System.Diagnostics.Process process = new System.Diagnostics.Process();
-            System.Diagnostics.ProcessStartInfo startInfo = new System.Diagnostics.ProcessStartInfo();
-            startInfo.WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden;
+            _hostPath = new Dictionary<PlatformID, string>()
+            {
+                {PlatformID.Win32NT,@"C:\Windows\System32\drivers\etc\hosts"},
+                {PlatformID.Unix,@"/etc/hosts"}
+            };
+            _hostName = new List<string>()
+            {
+                "github.com", 
+                "github-cloud.s3.amazonaws.com", 
+                "codeload.github.com",
+                "raw.githubusercontent.com"
+            };
+            _OS = Environment.OSVersion;
+            _addr = new IPAddress[0];
+            _funcArr = new Dictionary<PlatformID, Func<bool>>()
+            {
+                {PlatformID.Win32NT,WinNtFlushDns},
+                {PlatformID.Unix,LinuxFlushDns}
+            };
+        }
+        public bool Iteration()
+        {
+            Array.Resize(ref _addr, _hostName.Count);
+            for (int i = 0; i < _hostName.Count; i++)
+            {
+                _addr[i] = LookUpAsync(_hostName[i]);
+            }
+
+            SetHosts();
+            return _funcArr.FirstOrDefault(f => f.Key == _OS.Platform).Value();
+        }
+        bool LinuxFlushDns()
+        {
+            throw new NotImplementedException();
+        }
+
+        bool WinNtFlushDns()
+        {
+            Process process = new Process();
+            ProcessStartInfo startInfo = new ProcessStartInfo();
+            startInfo.WindowStyle = ProcessWindowStyle.Hidden;
             startInfo.FileName = "cmd.exe";
             startInfo.Arguments = "/C ipconfig /flushdns";
             startInfo.RedirectStandardOutput = false;
             process.StartInfo = startInfo;
             process.Start();
             process.Close();
+
+            Console.WriteLine("下载速度测试...");
+            Console.WriteLine("Ctrl + C 停止测试");
+            var speed = SpeedTest();
+            Console.WriteLine("测试下载速度: " + speed + "kbps");
+            if (speed < 300)
+            {
+                Console.WriteLine("测试下载速度 < 300kbps");
+                for (int i = 0; i < 29; i++)
+                {
+                    Console.Write("/");
+                }
+                Console.Write(Environment.NewLine);
+                return false;
+            }
+            Console.WriteLine("Hosts设置成功！");
+            return true;
         }
-        static long SpeedTest()
+        public void ConsoleWait(int s)
+        {
+            for (int i = s; i > 0; i--)
+            {
+                Console.CursorLeft = 0;
+                Console.Write($"{i}秒后自动关闭");
+                Thread.Sleep(1000);
+            }
+        }
+        long SpeedTest()
         {
             Stopwatch sw = new Stopwatch();
             WebClient webClient = new WebClient();
@@ -97,18 +139,9 @@ namespace GithubHost
                 return -1;
             }
         }
-        static void SetHosts()
+        void SetHosts()
         {
-            var Path = string.Empty;
-
-            if (OS.Platform == PlatformID.Win32NT)
-            {
-                Path = HostPath[0];
-            }
-            else if (OS.Platform == PlatformID.Unix)
-            {
-                Path = HostPath[1];
-            }
+            string Path = _hostPath[_OS.Platform];
 
             var FileStringArray = File.ReadLines(Path).ToArray();
             string FileString = string.Empty;
@@ -117,11 +150,11 @@ namespace GithubHost
             {
                 if (FileStringArray[i] != "" && FileStringArray[i].Substring(0, 1) != "#")
                 {
-                    for (int j = 0; j < HostsName.Length; j++)
+                    for (int j = 0; j < _hostName.Count; j++)
                     {
-                        if (FileStringArray[i].ToLower().Contains(HostsName[j]))
+                        if (FileStringArray[i].ToLower().Contains(_hostName[j]))
                         {
-                            FileStringArray[i] = Addr[j] + " " + HostsName[j] + "#GithubHost.exe";
+                            FileStringArray[i] = _addr[j] + " " + _hostName[j] + "#GithubHost.exe";
                         }
 
                     }
@@ -133,7 +166,7 @@ namespace GithubHost
             File.WriteAllText(Path, FileString);
         }
 
-        static IPAddress LookUpAsync(string Host)
+        IPAddress LookUpAsync(string Host)
         {
             var lookup = new LookupClient();
             var result = lookup.Query(Host, QueryType.A);
@@ -145,5 +178,6 @@ namespace GithubHost
             }
             return addr;
         }
+
     }
 }
