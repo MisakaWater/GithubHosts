@@ -1,0 +1,9 @@
+{
+  "Domains": 
+    [
+      "github.com",
+      "github-cloud.s3.amazonaws.com",
+      "codeload.github.com",
+      "raw.githubusercontent.com"
+    ]
+}

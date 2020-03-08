@@ -10,4 +10,10 @@
     <PackageReference Include="DnsClient" Version="1.2.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="HostName1.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

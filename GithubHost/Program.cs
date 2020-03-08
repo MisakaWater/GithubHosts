@@ -10,6 +10,8 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Collections.Generic;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace GithubHost
 {
@@ -23,7 +25,7 @@ namespace GithubHost
             {
                 Console.WriteLine($"第{Count}次测试");
                 Count++;
-                if (Count==10)
+                if (Count == 10)
                 {
                     Console.WriteLine("已尝试10次，请检查网络情况。");
                     break;
@@ -47,23 +49,57 @@ namespace GithubHost
                 {PlatformID.Win32NT,@"C:\Windows\System32\drivers\etc\hosts"},
                 {PlatformID.Unix,@"/etc/hosts"}
             };
-            _hostName = new List<string>()
-            {
-                "github.com", 
-                "github-cloud.s3.amazonaws.com", 
-                "codeload.github.com",
-                "raw.githubusercontent.com"
-            };
+            _hostName = GetHostName("HostName.json");
             _OS = Environment.OSVersion;
             _addr = new IPAddress[0];
             _funcArr = new Dictionary<PlatformID, Func<bool>>()
             {
                 {PlatformID.Win32NT,WinNtFlushDns},
-                {PlatformID.Unix,LinuxFlushDns}
+                {PlatformID.Unix,LinuxNetWorkingRestart}
             };
+        }
+        private class HostName
+        { 
+            public List<string> Domains { get; set; }
+        }
+        List<string> GetHostName(string filePath)
+        {
+            if (!File.Exists(filePath))
+            {
+                CreateFile(filePath);
+            }
+            StreamReader streamReader = new StreamReader(filePath);
+            string Json = streamReader.ReadToEnd();
+            var domain = JsonDocument.Parse(Json).RootElement.GetProperty("Domains");
+            if (domain.ValueKind != JsonValueKind.Array)
+            {
+                //return new List<string>() {
+                //    $"ERROR: {filePath} 文件内容错误。"
+                //};
+                throw new JsonException();
+            }
+            var hostName = new List<string>();
+            for (int i = 0; i < domain.GetArrayLength(); i++)
+            {
+                hostName.Add(domain[i].GetString());
+            }
+            return hostName;
+        }
+        void CreateFile(string filePath)
+        {
+            var hostname = new HostName();
+            var list = new List<string>();
+            list.Add("github.com");
+            list.Add("github-cloud.s3.amazonaws.com");
+            list.Add("codeload.github.com");
+            list.Add("raw.githubusercontent.com");
+            hostname.Domains = list;
+            var jsonString = JsonSerializer.Serialize(hostname);
+            File.WriteAllText(filePath, jsonString);
         }
         public bool Iteration()
         {
+            
             Array.Resize(ref _addr, _hostName.Count);
             for (int i = 0; i < _hostName.Count; i++)
             {
@@ -73,9 +109,9 @@ namespace GithubHost
             SetHosts();
             return _funcArr.FirstOrDefault(f => f.Key == _OS.Platform).Value();
         }
-        bool LinuxFlushDns()
-        {//linux下一般没有dns缓存
-            return true;
+        bool LinuxNetWorkingRestart()
+        {//未实现
+            throw new NotImplementedException();
         }
 
         bool WinNtFlushDns()
